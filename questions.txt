@@ -1,0 +1,15 @@
+what are route groups in react router?(auth)
+
+"use client" est-il nécessaire dans le fichier de mise en page ?
+
+zod library
+
+firebase
+types of sdks that firebase offers
+
+firebase and server actions and middleware / realtime database management / Edge functions
+
+
+destructure the text
+
+2:30:41
