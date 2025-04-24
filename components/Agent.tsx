@@ -145,6 +145,9 @@ const Agent = ({
         vapi.stop();
     };
 
+    const latestMessage = messages[messages.length - 1]?.content;
+    const isCallInactiveOrFinished = callStatus === CallStatus.INACTIVE || callStatus === CallStatus.FINISHED;
+
     return (
         <>
             <div className="call-view">

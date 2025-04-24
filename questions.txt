@@ -12,4 +12,14 @@ firebase and server actions and middleware / realtime database management / Edge
 
 destructure the text
 
+parallele request
+
+
+websites used:
+https://ui.shadcn.com/docs/components/form
+https://sdk.vercel.ai/docs/introduction
+https://aistudio.google.com/apikey
+https://dashboard.vapi.ai/assistants/32d0919e-8b39-46af-8fbf-5bf6d25d8301
+
+
 2:30:41
