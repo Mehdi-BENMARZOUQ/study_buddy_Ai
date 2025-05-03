@@ -6,65 +6,75 @@ import { google } from "@ai-sdk/google";
 import { db } from "@/firebase/admin";
 import { feedbackSchema } from "@/constants";
 
+
 export async function createFeedback(params: CreateFeedbackParams) {
     const { interviewId, userId, transcript, feedbackId } = params;
 
-    try {
-        const formattedTranscript = transcript
-            .map(
-                (sentence: { role: string; content: string }) =>
-                    `- ${sentence.role}: ${sentence.content}\n`
-            )
-            .join("");
+    const interviewDoc = await db.collection("interviews").doc(interviewId).get();
+    const originalQuestions = interviewDoc.data()?.questions || [];
 
-        const { object } = await generateObject({
-            model: google("gemini-2.0-flash-001", {
-                structuredOutputs: false,
-            }),
-            schema: feedbackSchema,
-            prompt: `
-        You are an AI interviewer analyzing a mock interview. Your task is to evaluate the candidate based on structured categories. Be thorough and detailed in your analysis. Don't be lenient with the candidate. If there are mistakes or areas for improvement, point them out.
-        Transcript:
-        ${formattedTranscript}
+    const qaPairs = [];
+    let answerBuffer = "";
+    let currentQIndex = 0;
 
-        Please score the candidate from 0 to 100 in the following areas. Do not add categories other than the ones provided:
-        - **Communication Skills**: Clarity, articulation, structured responses.
-        - **Technical Knowledge**: Understanding of key concepts for the role.
-        - **Problem-Solving**: Ability to analyze problems and propose solutions.
-        - **Cultural & Role Fit**: Alignment with company values and job role.
-        - **Confidence & Clarity**: Confidence in responses, engagement, and clarity.
-        `,
-            system:
-                "You are a professional interviewer analyzing a mock interview. Your task is to evaluate the candidate based on structured categories",
-        });
-
-        const feedback = {
-            interviewId: interviewId,
-            userId: userId,
-            totalScore: object.totalScore,
-            categoryScores: object.categoryScores,
-            strengths: object.strengths,
-            areasForImprovement: object.areasForImprovement,
-            finalAssessment: object.finalAssessment,
-            createdAt: new Date().toISOString(),
-        };
-
-        let feedbackRef;
-
-        if (feedbackId) {
-            feedbackRef = db.collection("feedback").doc(feedbackId);
-        } else {
-            feedbackRef = db.collection("feedback").doc();
+    for (const item of transcript) {
+        if (item.role === "candidate") {
+            answerBuffer += item.content + " ";
         }
+        else if (item.role === "interviewer" && answerBuffer) {
 
-        await feedbackRef.set(feedback);
-
-        return { success: true, feedbackId: feedbackRef.id };
-    } catch (error) {
-        console.error("Error saving feedback:", error);
-        return { success: false };
+            qaPairs.push({
+                question: originalQuestions[currentQIndex] || "Unknown question",
+                response: answerBuffer.trim()
+            });
+            currentQIndex++;
+            answerBuffer = "";
+        }
     }
+
+
+    const { object: feedback } = await generateObject({
+        model: google("gemini-2.0-flash-001"),
+        schema: feedbackSchema,
+        prompt: `
+      Analyze this interview transcript and provide HONEST feedback.
+      
+      **Rules:**
+      - If the candidate gave poor answers, reflect that in scores.
+      - If answers are wrong, mention it.
+      - If responses are too short, penalize "Communication" and "Clarity".
+      
+      **Questions & Responses:**
+      ${qaPairs.map((qa, i) => `
+        Q${i + 1}: ${qa.question}
+        A${i + 1}: ${qa.response}
+      `).join('\n')}
+    `,
+        system: `
+      You are a strict interviewer. Provide accurate, critical feedback.
+      - Highlight incorrect answers.
+      - Penalize vague responses.
+      - Adjust scores based on real performance.
+    `,
+    });
+
+    // 5. Save to Firestore
+    const feedbackRef = feedbackId
+        ? db.collection("feedback").doc(feedbackId)
+        : db.collection("feedback").doc();
+
+    await feedbackRef.set({
+        interviewId,
+        userId,
+        transcript,
+        qaPairs,
+        ...feedback,
+        createdAt: new Date().toISOString(),
+    });
+
+    return { success: true, feedbackId: feedbackRef.id };
 }
+
 
 export async function getInterviewById(id: string): Promise<Interview | null> {
     const interview = await db.collection("interviews").doc(id).get();

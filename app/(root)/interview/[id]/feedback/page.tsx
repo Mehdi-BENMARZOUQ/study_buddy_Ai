@@ -2,6 +2,9 @@ import dayjs from "dayjs";
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+
 
 import {
     getFeedbackByInterviewId,
@@ -14,13 +17,44 @@ const Page = async ({ params }: RouteParams) => {
     const { id } = await params;
     const user = await getCurrentUser();
 
-    const interview = await getInterviewById(id);
-    if(!interview) redirect('/');
+    const [interview, feedback] = await Promise.all([
+        getInterviewById(id),
+        getFeedbackByInterviewId({ interviewId: id, userId: user?.id! })
+    ]);
 
-    const feedback = await getFeedbackByInterviewId({
-        interviewId: id,
-        userId: user?.id!,
+    // Extract questions and answers from transcript
+    const qaPairs: { question: string; answer: string }[] = [];
+    let currentQuestion = '';
+
+    feedback?.transcript?.forEach((item) => {
+        if (item.role === 'interviewer') {
+            // Only update question if it's a new question (not a continuation)
+            if (!item.content.startsWith('...')) { // Adjust this condition as needed
+                currentQuestion = item.content;
+            } else {
+                currentQuestion += ' ' + item.content;
+            }
+        } else if (item.role === 'candidate' && currentQuestion) {
+            // Check if this is a new answer or continuation
+            const lastPair = qaPairs[qaPairs.length - 1];
+            if (lastPair && lastPair.question === currentQuestion) {
+                // Continue existing answer
+                lastPair.answer += ' ' + item.content;
+            } else {
+                // New QA pair
+                qaPairs.push({
+                    question: currentQuestion,
+                    answer: item.content
+                });
+            }
+        }
     });
+
+    console.log("QA Pairs:", feedback?.transcript);
+    console.log("Full Feedback Object:", feedback);
+    console.log("Transcript:", feedback?.transcript);
+    console.log("Questions:", feedback?.questions);
+    if (!interview) redirect('/');
 
     return (
         <section className="section-feedback">
@@ -109,6 +143,90 @@ const Page = async ({ params }: RouteParams) => {
                     </Link>
                 </Button>
             </div>
+
+
+
+<h1>continue</h1>
+            {/* new */}
+            <Tabs defaultValue="detailed" className="w-full">
+                <TabsContent value="detailed" className="space-y-4">
+                    {qaPairs.map((pair, index) => (
+                        <Card key={index}>
+                            <CardHeader>
+                                <CardTitle>Question {index + 1}</CardTitle>
+                                <CardDescription>{pair.question}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <h4 className="font-medium mb-1">Your Actual Response</h4>
+                                    <p className="text-sm text-muted-foreground">{pair.answer}</p>
+                                </div>
+
+                                {/* Still show AI-generated feedback if available */}
+                                {feedback?.questions?.[index] && (
+                                    <>
+                                        <div>
+                                            <h4 className="font-medium mb-1">Feedback</h4>
+                                            <p className="text-sm text-muted-foreground">
+                                                {feedback.questions[index].feedback}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 p-3 bg-green-50 rounded-md">
+                                                <h4 className="text-sm font-medium mb-1">Strengths</h4>
+                                                <ul className="text-xs space-y-1 list-disc list-inside">
+                                                    {feedback.questions[index].strengths.map((s, i) => (
+                                                        <li key={i}>{s}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+
+                                            <div className="flex-1 p-3 bg-yellow-50 rounded-md">
+                                                <h4 className="text-sm font-medium mb-1">Areas to Improve</h4>
+                                                <ul className="text-xs space-y-1 list-disc list-inside">
+                                                    {feedback.questions[index].areasToImprove.map((a, i) => (
+                                                        <li key={i}>{a}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </CardContent>
+                        </Card>
+                    ))}
+                </TabsContent>
+                <h3>test</h3>
+                {/* Full Transcript Tab */}
+                <TabsContent value="transcript">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Full Conversation</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {feedback?.transcript?.map((item, index) => (
+                                    <div
+                                        key={index}
+                                        className={`p-3 rounded-lg ${
+                                            item.role === 'interviewer'
+                                                ? 'bg-blue-50 dark:bg-blue-900/20'
+                                                : 'bg-gray-50 dark:bg-gray-800'
+                                        }`}
+                                    >
+                                        <p className="font-medium">
+                                            {item.role === 'interviewer' ? 'Interviewer' : 'You'}:
+                                        </p>
+                                        <p className="mt-1">{item.content}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+<h2>Alloha</h2>
         </section>
     )
 }

@@ -3,38 +3,34 @@ import { z } from "zod";
 
 
 
-export const feedbackSchema = z.object({
-    totalScore: z.number(),
-    categoryScores: z.tuple([
-        z.object({
-            name: z.literal("Communication Skills"),
-            score: z.number(),
-            comment: z.string(),
-        }),
-        z.object({
-            name: z.literal("Technical Knowledge"),
-            score: z.number(),
-            comment: z.string(),
-        }),
-        z.object({
-            name: z.literal("Problem Solving"),
-            score: z.number(),
-            comment: z.string(),
-        }),
-        z.object({
-            name: z.literal("Cultural Fit"),
-            score: z.number(),
-            comment: z.string(),
-        }),
-        z.object({
-            name: z.literal("Confidence and Clarity"),
-            score: z.number(),
-            comment: z.string(),
-        }),
+export const questionFeedbackSchema = z.object({
+    question: z.string(),
+    userResponse: z.string(),
+    feedback: z.string(),
+    strengths: z.array(z.string()),
+    areasToImprove: z.array(z.string()),
+});
+
+export const categoryScoreSchema = z.object({
+    name: z.union([
+        z.literal("Communication Skills"),
+        z.literal("Technical Knowledge"),
+        z.literal("Problem Solving"),
+        z.literal("Cultural Fit"),
+        z.literal("Confidence and Clarity")
     ]),
+    score: z.number().min(0).max(100),
+    comment: z.string().optional(),
+});
+
+
+export const feedbackSchema = z.object({
+    questions: z.array(questionFeedbackSchema),
+    categoryScores: z.array(categoryScoreSchema),
     strengths: z.array(z.string()),
     areasForImprovement: z.array(z.string()),
     finalAssessment: z.string(),
+    totalScore: z.number().min(0).max(100),
 });
 
 export const interviewer: CreateAssistantDTO = {
@@ -94,6 +90,7 @@ End the conversation on a polite and positive note.
         ],
     },
 };
+
 export const mappings = {
     "react.js": "react",
     reactjs: "react",

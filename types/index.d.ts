@@ -1,7 +1,14 @@
+interface TranscriptItem {
+  role: 'interviewer' | 'candidate';
+  content: string;
+  timestamp?: number;
+}
+
 interface Feedback {
   id: string;
   interviewId: string;
   totalScore: number;
+  transcript: TranscriptItem[];
   categoryScores: Array<{
     name: string;
     score: number;
@@ -11,6 +18,16 @@ interface Feedback {
   areasForImprovement: string[];
   finalAssessment: string;
   createdAt: string;
+  questions?: QuestionFeedback[];
+  
+}
+
+interface QuestionFeedback {
+  question: string;
+  userResponse: string;
+  feedback: string;
+  strengths: string[];
+  areasToImprove: string[];
 }
 
 interface Interview {
